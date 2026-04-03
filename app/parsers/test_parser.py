@@ -1,4 +1,3 @@
-from app.parsers.vacancy_parser import vacancies_from_html
 import requests
 from bs4 import BeautifulSoup
 import time

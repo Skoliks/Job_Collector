@@ -8,6 +8,8 @@ def get_all_vacancies(
     title: str | None = None,
     salary: int | None = None,
     sort_by: str | None = None,
+    company: str | None = None,
+    location: str | None = None,
     limit: int = 10,
     offset: int = 0
 ):
@@ -18,6 +20,12 @@ def get_all_vacancies(
     
     if salary:
         query = query.filter(VacancyModel.salary == salary)
+        
+    if company:
+        query = query.filter(VacancyModel.company.ilike(f"%{company}%"))
+    
+    if location:
+        query = query.filter(VacancyModel.location.ilike(f"%{location}%"))
     
     if sort_by == "salary":
         query = query.order_by(VacancyModel.salary)
