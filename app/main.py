@@ -22,6 +22,11 @@ def read_index():
     return FileResponse(PROJECT_ROOT / "index.html")
 
 
+@app.get("/add", include_in_schema=False)
+def read_add_page():
+    return FileResponse(PROJECT_ROOT / "add.html")
+
+
 @app.get("/style.css", include_in_schema=False)
 def read_style():
     return FileResponse(PROJECT_ROOT / "style.css")

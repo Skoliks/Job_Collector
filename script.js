@@ -9,13 +9,9 @@ const state = {
   currentPage: 1,
   lastPageLoadedCount: 0,
   filters: {
-    title: "",
-    company: "",
-    location: "",
-    salary: "",
+    q: "",
     sort_by: ""
-  },
-  editingId: null
+  }
 };
 
 const elements = {
@@ -23,10 +19,6 @@ const elements = {
   notification: document.getElementById("notification"),
   searchForm: document.getElementById("searchForm"),
   searchInput: document.getElementById("searchInput"),
-  searchField: document.getElementById("searchField"),
-  companyFilter: document.getElementById("companyFilter"),
-  locationFilter: document.getElementById("locationFilter"),
-  salaryFilter: document.getElementById("salaryFilter"),
   sortByFilter: document.getElementById("sortByFilter"),
   resetFiltersBtn: document.getElementById("resetFiltersBtn"),
   createForm: document.getElementById("createForm"),
@@ -34,6 +26,14 @@ const elements = {
   emptyState: document.getElementById("emptyState"),
   pagination: document.getElementById("pagination")
 };
+
+function isListPage() {
+  return Boolean(elements.vacanciesList);
+}
+
+function isAddPage() {
+  return Boolean(elements.createForm) && !elements.vacanciesList;
+}
 
 // Универсальный helper для fetch с обработкой ошибок.
 async function request(url, options = {}) {
@@ -54,7 +54,6 @@ async function request(url, options = {}) {
     throw new Error(message);
   }
 
-  // Для данного API ответы в JSON.
   return response.json();
 }
 
@@ -69,7 +68,6 @@ async function fetchVacancies(params = {}) {
     }
   });
 
-  // Предположение: backend использует маршрут /vacancies/.
   return request(`${BASE_URL}/vacancies/?${query.toString()}`);
 }
 
@@ -88,7 +86,6 @@ async function createVacancy(payload) {
 }
 
 async function updateVacancy(id, payload) {
-  // Используем PATCH, потому что в этом backend PATCH обновляет все поля по необходимости.
   return request(`${BASE_URL}/vacancies/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -105,10 +102,13 @@ async function removeVacancy(id) {
 // ----- UI helper-функции -----
 
 function showNotification(message, type = "success") {
+  if (!elements.notification) return;
+
   elements.notification.textContent = message;
   elements.notification.className = `notification ${type}`;
 
   setTimeout(() => {
+    if (!elements.notification) return;
     elements.notification.className = "notification hidden";
     elements.notification.textContent = "";
   }, 3000);
@@ -133,6 +133,8 @@ function formatMeta(label, value) {
 }
 
 function renderVacancies(vacancies) {
+  if (!elements.vacanciesList || !elements.emptyState) return;
+
   elements.vacanciesList.innerHTML = "";
 
   if (!vacancies.length) {
@@ -172,6 +174,8 @@ function renderVacancies(vacancies) {
 }
 
 function renderPagination() {
+  if (!elements.pagination) return;
+
   elements.pagination.innerHTML = "";
 
   const canShowNext = state.lastPageLoadedCount === PAGE_SIZE;
@@ -195,10 +199,7 @@ function renderPagination() {
 
 function getSearchAndFilters() {
   return {
-    title: state.filters.title,
-    company: state.filters.company,
-    location: state.filters.location,
-    salary: state.filters.salary,
+    q: state.filters.q,
     sort_by: state.filters.sort_by,
     limit: PAGE_SIZE,
     offset: (state.currentPage - 1) * PAGE_SIZE
@@ -261,6 +262,8 @@ function normalizeVacancyPayload(formData) {
 // ----- Основная загрузка списка -----
 
 async function loadVacancies() {
+  if (!isListPage()) return;
+
   try {
     const params = getSearchAndFilters();
     const vacancies = await fetchVacancies(params);
@@ -270,174 +273,158 @@ async function loadVacancies() {
     renderPagination();
   } catch (error) {
     showNotification(`Ошибка загрузки: ${error.message}`, "error");
-    elements.vacanciesList.innerHTML = "";
-    elements.emptyState.classList.remove("hidden");
-    elements.pagination.innerHTML = "";
+    if (elements.vacanciesList) elements.vacanciesList.innerHTML = "";
+    if (elements.emptyState) elements.emptyState.classList.remove("hidden");
+    if (elements.pagination) elements.pagination.innerHTML = "";
   }
 }
 
-// ----- Обработчики событий -----
+// ----- Обработчики событий для главной страницы -----
 
-elements.parseBtn.addEventListener("click", async () => {
-  try {
-    elements.parseBtn.disabled = true;
-    const result = await parseFakeVacancies();
-
-    const created = result.created_count ?? 0;
-    const skipped = result.skipped_count ?? 0;
-
-    showNotification(`Парсинг завершен: добавлено ${created}, пропущено ${skipped}`);
-    state.currentPage = 1;
-    await loadVacancies();
-  } catch (error) {
-    showNotification(`Ошибка парсинга: ${error.message}`, "error");
-  } finally {
-    elements.parseBtn.disabled = false;
-  }
-});
-
-elements.searchForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  const searchValue = elements.searchInput.value.trim();
-  const searchField = elements.searchField.value;
-
-  // Очищаем целевые поля поиска перед применением нового запроса.
-  state.filters.title = "";
-  state.filters.company = "";
-  state.filters.location = "";
-  state.filters.salary = "";
-
-  // Поиск направляем в выбранное поле backend-фильтра.
-  if (searchValue) {
-    if (searchField === "salary") {
-      state.filters.salary = Number(searchValue) || "";
-    } else {
-      state.filters[searchField] = searchValue;
-    }
-  }
-
-  // Дополнительные фильтры с формы применяются поверх поиска.
-  if (elements.companyFilter.value.trim()) {
-    state.filters.company = elements.companyFilter.value.trim();
-  }
-
-  if (elements.locationFilter.value.trim()) {
-    state.filters.location = elements.locationFilter.value.trim();
-  }
-
-  if (elements.salaryFilter.value.trim()) {
-    state.filters.salary = Number(elements.salaryFilter.value.trim()) || "";
-  }
-
-  state.filters.sort_by = elements.sortByFilter.value;
-  state.currentPage = 1;
-
-  await loadVacancies();
-});
-
-elements.resetFiltersBtn.addEventListener("click", async () => {
-  elements.searchForm.reset();
-  state.filters = {
-    title: "",
-    company: "",
-    location: "",
-    salary: "",
-    sort_by: ""
-  };
-  state.currentPage = 1;
-  await loadVacancies();
-});
-
-elements.createForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  try {
-    const formData = new FormData(elements.createForm);
-    const payload = normalizeVacancyPayload(formData);
-
-    await createVacancy(payload);
-    elements.createForm.reset();
-
-    showNotification("Вакансия добавлена");
-    state.currentPage = 1;
-    await loadVacancies();
-  } catch (error) {
-    showNotification(`Ошибка добавления: ${error.message}`, "error");
-  }
-});
-
-elements.vacanciesList.addEventListener("click", async (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLElement)) return;
-
-  const action = target.getAttribute("data-action");
-  const vacancyId = Number(target.getAttribute("data-id"));
-
-  if (action === "delete" && vacancyId) {
-    const confirmed = confirm("Удалить вакансию?");
-    if (!confirmed) return;
-
+if (elements.parseBtn) {
+  elements.parseBtn.addEventListener("click", async () => {
     try {
-      await removeVacancy(vacancyId);
-      showNotification("Вакансия удалена");
+      elements.parseBtn.disabled = true;
+      const result = await parseFakeVacancies();
+
+      const created = result.created_count ?? 0;
+      const skipped = result.skipped_count ?? 0;
+
+      showNotification(`Парсинг завершен: добавлено ${created}, пропущено ${skipped}`);
+      state.currentPage = 1;
       await loadVacancies();
     } catch (error) {
-      showNotification(`Ошибка удаления: ${error.message}`, "error");
+      showNotification(`Ошибка парсинга: ${error.message}`, "error");
+    } finally {
+      elements.parseBtn.disabled = false;
     }
-  }
+  });
+}
 
-  if (action === "edit" && vacancyId) {
-    try {
-      // Для точного редактирования подгружаем карточку заново из списка текущей страницы.
-      const currentVacancies = await fetchVacancies(getSearchAndFilters());
-      const vacancy = currentVacancies.find((item) => item.id === vacancyId);
-      if (!vacancy) {
-        showNotification("Не удалось открыть форму редактирования", "error");
-        return;
-      }
+if (elements.searchForm && elements.searchInput && elements.sortByFilter) {
+  elements.searchForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-      state.editingId = vacancyId;
-      const container = document.getElementById(`edit-${vacancyId}`);
-      if (!container) return;
+    state.filters.q = elements.searchInput.value.trim();
+    state.filters.sort_by = elements.sortByFilter.value;
+    state.currentPage = 1;
 
-      fillEditForm(container, vacancy);
-    } catch (error) {
-      showNotification(`Ошибка редактирования: ${error.message}`, "error");
-    }
-  }
-
-  const cancelEditId = Number(target.getAttribute("data-cancel-edit"));
-  if (cancelEditId) {
-    const container = document.getElementById(`edit-${cancelEditId}`);
-    if (container) container.innerHTML = "";
-    state.editingId = null;
-  }
-});
-
-elements.vacanciesList.addEventListener("submit", async (event) => {
-  const form = event.target;
-  if (!(form instanceof HTMLFormElement)) return;
-
-  if (!form.hasAttribute("data-edit-form")) return;
-
-  event.preventDefault();
-
-  const vacancyId = Number(form.getAttribute("data-edit-form"));
-  if (!vacancyId) return;
-
-  try {
-    const formData = new FormData(form);
-    const payload = normalizeVacancyPayload(formData);
-
-    await updateVacancy(vacancyId, payload);
-    showNotification("Вакансия обновлена");
-    state.editingId = null;
     await loadVacancies();
-  } catch (error) {
-    showNotification(`Ошибка обновления: ${error.message}`, "error");
-  }
-});
+  });
+}
 
-// Первая загрузка данных при открытии страницы.
-loadVacancies();
+if (elements.resetFiltersBtn && elements.searchForm) {
+  elements.resetFiltersBtn.addEventListener("click", async () => {
+    elements.searchForm.reset();
+    state.filters = {
+      q: "",
+      sort_by: ""
+    };
+    state.currentPage = 1;
+    await loadVacancies();
+  });
+}
+
+if (elements.vacanciesList) {
+  elements.vacanciesList.addEventListener("click", async (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+
+    const action = target.getAttribute("data-action");
+    const vacancyId = Number(target.getAttribute("data-id"));
+
+    if (action === "delete" && vacancyId) {
+      const confirmed = confirm("Удалить вакансию?");
+      if (!confirmed) return;
+
+      try {
+        await removeVacancy(vacancyId);
+        showNotification("Вакансия удалена");
+        await loadVacancies();
+      } catch (error) {
+        showNotification(`Ошибка удаления: ${error.message}`, "error");
+      }
+    }
+
+    if (action === "edit" && vacancyId) {
+      try {
+        const currentVacancies = await fetchVacancies(getSearchAndFilters());
+        const vacancy = currentVacancies.find((item) => item.id === vacancyId);
+        if (!vacancy) {
+          showNotification("Не удалось открыть форму редактирования", "error");
+          return;
+        }
+
+        const container = document.getElementById(`edit-${vacancyId}`);
+        if (!container) return;
+
+        fillEditForm(container, vacancy);
+      } catch (error) {
+        showNotification(`Ошибка редактирования: ${error.message}`, "error");
+      }
+    }
+
+    const cancelEditId = Number(target.getAttribute("data-cancel-edit"));
+    if (cancelEditId) {
+      const container = document.getElementById(`edit-${cancelEditId}`);
+      if (container) container.innerHTML = "";
+    }
+  });
+
+  elements.vacanciesList.addEventListener("submit", async (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) return;
+
+    if (!form.hasAttribute("data-edit-form")) return;
+
+    event.preventDefault();
+
+    const vacancyId = Number(form.getAttribute("data-edit-form"));
+    if (!vacancyId) return;
+
+    try {
+      const formData = new FormData(form);
+      const payload = normalizeVacancyPayload(formData);
+
+      await updateVacancy(vacancyId, payload);
+      showNotification("Вакансия обновлена");
+      await loadVacancies();
+    } catch (error) {
+      showNotification(`Ошибка обновления: ${error.message}`, "error");
+    }
+  });
+}
+
+// ----- Обработчики событий для страницы добавления -----
+
+if (elements.createForm) {
+  elements.createForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    try {
+      const formData = new FormData(elements.createForm);
+      const payload = normalizeVacancyPayload(formData);
+
+      await createVacancy(payload);
+      elements.createForm.reset();
+
+      showNotification("Вакансия добавлена");
+
+      // На отдельной странице добавления после успеха уводим пользователя обратно к ленте.
+      if (isAddPage()) {
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 500);
+      } else {
+        state.currentPage = 1;
+        await loadVacancies();
+      }
+    } catch (error) {
+      showNotification(`Ошибка добавления: ${error.message}`, "error");
+    }
+  });
+}
+
+if (isListPage()) {
+  loadVacancies();
+}

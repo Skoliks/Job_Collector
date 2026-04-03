@@ -13,102 +13,31 @@
         <h1>Job Collector</h1>
         <p class="subtitle">Учебный интерфейс для работы с вакансиями</p>
       </div>
-      <button id="parseBtn" class="btn btn-primary">Запустить парсинг fake-jobs</button>
+      <div class="header-actions">
+        <a href="/add" class="btn">Добавить вакансию</a>
+        <button id="parseBtn" class="btn btn-primary">Запустить парсинг fake-jobs</button>
+      </div>
     </header>
 
     <div id="notification" class="notification hidden" role="status" aria-live="polite"></div>
 
     <section class="card controls">
-      <h2>Поиск и фильтры</h2>
-      <form id="searchForm" class="grid-form">
-        <label>
-          Поиск
-          <input id="searchInput" type="text" placeholder="Например: Python" />
-        </label>
-
-        <label>
-          Поле поиска
-          <select id="searchField">
-            <option value="title">title</option>
-            <option value="company">company</option>
-            <option value="location">location</option>
-            <option value="salary">salary</option>
-          </select>
-        </label>
-
-        <label>
-          company
-          <input id="companyFilter" type="text" placeholder="Компания" />
-        </label>
-
-        <label>
-          location
-          <input id="locationFilter" type="text" placeholder="Город/регион" />
-        </label>
-
-        <label>
-          salary
-          <input id="salaryFilter" type="number" min="0" step="1" placeholder="100000" />
-        </label>
-
-        <label>
-          Сортировка
-          <select id="sortByFilter">
-            <option value="">Без сортировки</option>
-            <option value="created_at">По дате добавления</option>
-            <option value="salary">По зарплате</option>
-          </select>
-        </label>
-
-        <div class="actions">
-          <button type="submit" class="btn btn-primary">Найти</button>
-          <button type="button" id="resetFiltersBtn" class="btn">Сбросить</button>
-        </div>
+      <h2>Поиск вакансий</h2>
+      <form id="searchForm" class="search-row">
+        <input
+          id="searchInput"
+          type="text"
+          placeholder="Например: Developer Google Blagoveshensk"
+        />
+        <select id="sortByFilter">
+          <option value="">Без сортировки</option>
+          <option value="created_at">По дате добавления</option>
+          <option value="salary">По зарплате</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Найти</button>
+        <button type="button" id="resetFiltersBtn" class="btn">Сбросить</button>
       </form>
-    </section>
-
-    <section class="card controls">
-      <h2>Добавить вакансию</h2>
-      <form id="createForm" class="grid-form">
-        <label>
-          title*
-          <input name="title" type="text" required />
-        </label>
-
-        <label>
-          company*
-          <input name="company" type="text" required />
-        </label>
-
-        <label>
-          salary
-          <input name="salary" type="number" min="0" step="1" />
-        </label>
-
-        <label>
-          location
-          <input name="location" type="text" />
-        </label>
-
-        <label>
-          published_date
-          <input name="published_date" type="text" placeholder="2026-04-03" />
-        </label>
-
-        <label>
-          url
-          <input name="url" type="url" placeholder="https://..." />
-        </label>
-
-        <label class="full-width">
-          description
-          <textarea name="description" rows="3" placeholder="Описание вакансии"></textarea>
-        </label>
-
-        <div class="actions">
-          <button type="submit" class="btn btn-primary">Добавить</button>
-        </div>
-      </form>
+      <p class="hint">Поиск по ключевым словам в title/company/location/description/url и salary.</p>
     </section>
 
     <section>

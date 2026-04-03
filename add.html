@@ -1,0 +1,71 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Добавить вакансию | Job Collector</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="header card">
+      <div>
+        <h1>Добавить вакансию</h1>
+        <p class="subtitle">Ручное добавление записи в базу</p>
+      </div>
+      <div class="header-actions">
+        <a href="/" class="btn">К ленте вакансий</a>
+      </div>
+    </header>
+
+    <div id="notification" class="notification hidden" role="status" aria-live="polite"></div>
+
+    <section class="card controls">
+      <h2>Новая вакансия</h2>
+      <form id="createForm" class="grid-form">
+        <label>
+          title*
+          <input name="title" type="text" required />
+        </label>
+
+        <label>
+          company*
+          <input name="company" type="text" required />
+        </label>
+
+        <label>
+          salary
+          <input name="salary" type="number" min="0" step="1" />
+        </label>
+
+        <label>
+          location
+          <input name="location" type="text" />
+        </label>
+
+        <label>
+          published_date
+          <input name="published_date" type="text" placeholder="2026-04-03" />
+        </label>
+
+        <label>
+          url
+          <input name="url" type="url" placeholder="https://..." />
+        </label>
+
+        <label class="full-width">
+          description
+          <textarea name="description" rows="4" placeholder="Описание вакансии"></textarea>
+        </label>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">Добавить</button>
+          <a href="/" class="btn">Отмена</a>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

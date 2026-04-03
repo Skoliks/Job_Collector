@@ -16,6 +16,7 @@ router = APIRouter(prefix="/vacancies", tags=["Vacancies"])
 
 @router.get("/", response_model=list[Vacancy])
 def get_all_vacancies_route(
+    q: str | None = None,
     title: str | None = None,
     salary: int | None = None,
     company: str | None = None,
@@ -34,8 +35,17 @@ def get_all_vacancies_route(
     if offset < 0:
         raise HTTPException(status_code=400, detail="Offset must be >= 0")
     
-    return get_all_vacancies(db=db, title=title, salary=salary, company=company, 
-                             location=location, sort_by=sort_by, limit=limit, offset=offset)
+    return get_all_vacancies(
+        db=db,
+        q=q,
+        title=title,
+        salary=salary,
+        company=company,
+        location=location,
+        sort_by=sort_by,
+        limit=limit,
+        offset=offset
+    )
 
 
 @router.get("/{id}", response_model=Vacancy)
