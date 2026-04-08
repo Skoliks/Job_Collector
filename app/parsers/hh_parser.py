@@ -143,9 +143,9 @@ def parse_hh_vacancies(text: str, period: int, max_pages: int, per_page: int) ->
         collect_vacancies(
             url=URL,
             headers=headers,
-            text="Аналитик",
-            period=7,
-            max_pages=10,
-            per_page=20
+            text=text,
+            period=period,
+            max_pages=max_pages,
+            per_page=per_page
         )
     )
