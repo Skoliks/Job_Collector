@@ -136,8 +136,16 @@ async def collect_vacancies(url: str, headers: dict, text: str, period: int, max
                 
     print(f"Кол-во обработанных вакансий:{len(vacancies)}")
     return vacancies
-
-
-print(asyncio.run(collect_vacancies(url=URL,headers=headers, text="Аналитик", period=7, max_pages=10, per_page=20)))       
+     
     
-    
+def parse_hh_vacancies(text: str, period: int, max_pages: int, per_page: int) -> list[dict]:
+    return asyncio.run(
+        collect_vacancies(
+            url=URL,
+            headers=headers,
+            text="Аналитик",
+            period=7,
+            max_pages=10,
+            per_page=20
+        )
+    )
