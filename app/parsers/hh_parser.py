@@ -1,29 +1,33 @@
-import requests
-
+import aiohttp
+import asyncio
 
 URL = "https://api.hh.ru/vacancies"
-
-page = 0
-per_page = 20
-search_queries = 'Аналитик'
-period = 7
 
 headers = {"HH-User-Agent": "hh-learning-script (egor.aleksandravith@mail.ru)"}
 
 
-def get_vacancies_page(url: str, params: dict, headers: dict) -> dict | None:
-    
+async def get_vacancies_page(
+    url: str, 
+    params: dict, 
+    headers: dict, 
+    session: aiohttp.ClientSession, 
+    semaphore: asyncio.Semaphore
+) -> dict | None:
     try:
-        response = requests.get(url=url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
-    except requests.exceptions.Timeout as e:
+        async with semaphore:
+            print(f"Идет запрос на {url}")
+            async with session.get(url=url, params=params, headers=headers, timeout=10) as response:
+                response.raise_for_status()
+                data = await response.json()
+    except asyncio.TimeoutError as e:
         print("Timeout Error:", e)
         return None
-    except requests.exceptions.RequestException as e:
+    except aiohttp.ClientError as e:
         print("Request Error:", e)
         return None
     
-    return response.json()
+    print("Загрузка совершена успешно!")
+    return data
 
 
 def parse_vacancy(vacancy: dict) -> dict:
@@ -76,46 +80,64 @@ def parse_vacancy(vacancy: dict) -> dict:
     }
     
 
-def collect_vacancies(url: str, headers: dict, text: str, period: int, max_pages: int, per_page: int) -> list[dict]:
+async def collect_vacancies(url: str, headers: dict, text: str, period: int, max_pages: int, per_page: int) -> list[dict]:
     vacancies = []
+    semaphore = asyncio.Semaphore(5)
     
-    first_params = {
-        'text': text,
-        'period': period,
-        'per_page': per_page,
-        'page': 0,
-        }
-    
-    json_data_for_pages = get_vacancies_page(url=url, params=first_params, headers=headers)
-    
-    if json_data_for_pages is None:
-        return []
-    
-    total_pages = json_data_for_pages.get('pages',0)
-    pages_for_parse = min(max_pages, total_pages)
-    
-    for page in range(pages_for_parse):
-        params = {
+    async with aiohttp.ClientSession() as session:
+        first_params = {
             'text': text,
             'period': period,
             'per_page': per_page,
-            'page': page,
-        }
+            'page': 0,
+            }
         
-        json_data = get_vacancies_page(url=url, params=params, headers=headers)
+        print("Идет запрос на страницу для получения макс. страниц")
+        json_data_for_pages = await get_vacancies_page(url=url, params=first_params, headers=headers, semaphore=semaphore, session=session)
         
-        if json_data is None:
-            continue
+        if json_data_for_pages is None:
+            print("Запрос завершился ошибкой. Макс. страниц не найдено")
+            return []
         
-        items = json_data.get('items', [])
+        total_pages = json_data_for_pages.get('pages',0)
+        pages_for_parse = min(max_pages, total_pages)
+        tasks = []
         
-        for vacancy in items:
-            parsed_vacancy = parse_vacancy(vacancy)
-            vacancies.append(parsed_vacancy)
+        for page in range(pages_for_parse):
+            params = {
+                'text': text,
+                'period': period,
+                'per_page': per_page,
+                'page': page,
+            }
+            
+            print(f"Идет запрос на страницу {page}")
+            task = get_vacancies_page(url=url, params=params, headers=headers, semaphore=semaphore, session=session)
         
+            tasks.append(task)
+            
+        results = await asyncio.gather(*tasks)
+            
+        for page, json_data in enumerate(results):   
+            if json_data is None:
+                print(f"Страница {page} пропущена из-за ошибки")
+                continue
+                
+            items = json_data.get('items', [])
+        
+            if not items:
+                print(f"Вакансий на странице {page} не найдено!")
+            else:
+                print(f"Получено {len(items)} вакансий на странице {page}")
+                
+            for vacancy in items:
+                parsed_vacancy = parse_vacancy(vacancy)
+                vacancies.append(parsed_vacancy)
+                
+    print(f"Кол-во обработанных вакансий:{len(vacancies)}")
     return vacancies
 
 
-print(collect_vacancies(url=URL,headers=headers, text="Аналитик", period=7, max_pages=10, per_page=20))       
+print(asyncio.run(collect_vacancies(url=URL,headers=headers, text="Аналитик", period=7, max_pages=10, per_page=20)))       
     
     
