@@ -2,20 +2,22 @@ import requests
 from bs4 import BeautifulSoup
 import asyncio
 import aiohttp
+from app.core.config import settings
+import logging
 
-URL = "https://realpython.github.io/fake-jobs/"
-
+logger = logging.getLogger(__name__)
 
 def get_main_page(url: str) -> str:
     with requests.Session() as session:
         try:
+            logger.info(f"Request on {url}")
             response = session.get(url, timeout=10)
             response.raise_for_status()
             return response.text
-        except requests.exceptions.Timeout:
-            print("Долго грузит, бро :(")
-        except requests.exceptions.RequestException:
-            print("Ошибка! Ничего не загрузилось!!!!!!!")
+        except requests.exceptions.Timeout as e:
+            logger.error("Timeout Error:", e)
+        except requests.exceptions.RequestException as e:
+            logger.error("Request Error:", e)
 
         return ""
 
@@ -72,19 +74,19 @@ def get_details_from_vacancy_card(html: str) -> dict:
 async def fetch_description_from_from_card(session: aiohttp.ClientSession, vacancy: dict, semaphore: asyncio.Semaphore) -> dict:
     url = vacancy["url"]
 
-    print(f"Загрузка данных {url}")
+    logger.info(f"Request on {url}")
 
     try:
         async with semaphore:
             async with session.get(url, timeout=10) as response:
                 response.raise_for_status()
                 html = await response.text()
-    except asyncio.TimeoutError:
-        print("Время подключения вышло!")
+    except asyncio.TimeoutError as e:
+        logger.error("Timeout Error:", e)
         vacancy["description"] = None
         return vacancy
-    except aiohttp.ClientError:
-        print(f"Ошибка при загрузке {url}")
+    except aiohttp.ClientError as e:
+        logger.error("Request Error:", e)
         vacancy["description"] = None
         return vacancy
 
@@ -107,7 +109,7 @@ async def enrich_vacancies_with_description(vacancies: list[dict]) -> list[dict]
 
 
 def parse_fake_jobs() -> list[dict]:
-    html = get_main_page(URL)
+    html = get_main_page(settings.fake_jobs_url)
     if not html:
         return []
     

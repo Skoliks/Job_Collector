@@ -98,6 +98,10 @@ def update_completely_vacancy(id: int, new_data: UpdateCompletelyVacancy, db: Se
     vacancy.title = new_data.title
     vacancy.company = new_data.company
     vacancy.salary = new_data.salary
+    vacancy.location = new_data.location
+    vacancy.published_date = new_data.published_date
+    vacancy.description = new_data.description
+    vacancy.url = new_data.url
 
     db.commit()
     db.refresh(vacancy)

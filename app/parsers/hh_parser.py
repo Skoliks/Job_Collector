@@ -1,9 +1,11 @@
 import aiohttp
 import asyncio
+from app.core.config import settings
+import logging
 
-URL = "https://api.hh.ru/vacancies"
+logger = logging.getLogger(__name__)
 
-headers = {"HH-User-Agent": "hh-learning-script (egor.aleksandravith@mail.ru)"}
+headers = {"HH-User-Agent": f"hh-learning-script ({settings.hh_api_email})"}
 
 
 async def get_vacancies_page(
@@ -15,18 +17,18 @@ async def get_vacancies_page(
 ) -> dict | None:
     try:
         async with semaphore:
-            print(f"Идет запрос на {url}")
+            logger.info(f"Request on: {url}")
             async with session.get(url=url, params=params, headers=headers, timeout=10) as response:
                 response.raise_for_status()
                 data = await response.json()
     except asyncio.TimeoutError as e:
-        print("Timeout Error:", e)
+        logger.error("Timeout Error:", e)
         return None
     except aiohttp.ClientError as e:
-        print("Request Error:", e)
+        logger.error("Request Error:", e)
         return None
     
-    print("Загрузка совершена успешно!")
+    logger.info("Request completed successfully!")
     return data
 
 
@@ -92,11 +94,11 @@ async def collect_vacancies(url: str, headers: dict, text: str, period: int, max
             'page': 0,
             }
         
-        print("Идет запрос на страницу для получения макс. страниц")
+        logger.info("Request for getting max. page count")
         json_data_for_pages = await get_vacancies_page(url=url, params=first_params, headers=headers, semaphore=semaphore, session=session)
         
         if json_data_for_pages is None:
-            print("Запрос завершился ошибкой. Макс. страниц не найдено")
+            logger.error("Request completed with errror. Count of max page not found!")
             return []
         
         total_pages = json_data_for_pages.get('pages',0)
@@ -111,7 +113,7 @@ async def collect_vacancies(url: str, headers: dict, text: str, period: int, max
                 'page': page,
             }
             
-            print(f"Идет запрос на страницу {page}")
+            logger.info(f"Request on {page}")
             task = get_vacancies_page(url=url, params=params, headers=headers, semaphore=semaphore, session=session)
         
             tasks.append(task)
@@ -120,28 +122,28 @@ async def collect_vacancies(url: str, headers: dict, text: str, period: int, max
             
         for page, json_data in enumerate(results):   
             if json_data is None:
-                print(f"Страница {page} пропущена из-за ошибки")
+                logger.error(f"Page {page} skipped due to error")
                 continue
                 
             items = json_data.get('items', [])
         
             if not items:
-                print(f"Вакансий на странице {page} не найдено!")
+                logger.info(f"Vacancies on the page {page} not found!")
             else:
-                print(f"Получено {len(items)} вакансий на странице {page}")
+                logger.info(f"received {len(items)} vacancies on page {page}")
                 
             for vacancy in items:
                 parsed_vacancy = parse_vacancy(vacancy)
                 vacancies.append(parsed_vacancy)
                 
-    print(f"Кол-во обработанных вакансий:{len(vacancies)}")
+    logger.info(f"Count of vacancies:{len(vacancies)}")
     return vacancies
      
     
 def parse_hh_vacancies(text: str, period: int, max_pages: int, per_page: int) -> list[dict]:
     return asyncio.run(
         collect_vacancies(
-            url=URL,
+            url=settings.hh_api_url,
             headers=headers,
             text=text,
             period=period,
@@ -149,3 +151,5 @@ def parse_hh_vacancies(text: str, period: int, max_pages: int, per_page: int) ->
             per_page=per_page
         )
     )
+
+print(parse_hh_vacancies(text="Аналитик", period=7, max_pages=10, per_page=20))

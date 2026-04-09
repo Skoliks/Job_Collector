@@ -4,9 +4,10 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from app.routers.vacancies import router
 from app.database import Base, engine
-
+from app.core.logging import logger_setup
 
 Base.metadata.create_all(bind=engine)
+logger_setup()
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 app = FastAPI(
