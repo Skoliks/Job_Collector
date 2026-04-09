@@ -1,0 +1,19 @@
+# Python кеш
+__pycache__/
+*.py[cod]
+
+# Виртуальное окружение
+venv/
+
+# Конфиги
+.env
+
+# База данных
+*.db
+
+# Кеши
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
