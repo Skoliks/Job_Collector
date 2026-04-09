@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Float, String, Integer, DateTime, Text
+from sqlalchemy import Column, String, Integer, DateTime, Text
 from datetime import datetime
 from app.database import Base
 
@@ -9,9 +9,10 @@ class Vacancy(Base):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     company = Column(String, nullable=False)
-    salary = Column(int, nullable=True)
+    salary = Column(Integer, nullable=True)
     location = Column(String, nullable=True)
     published_date = Column(String, nullable=True)
     description = Column(Text, nullable=True)
     url = Column(String, nullable=True, unique=True)
+    source = Column(String, nullable=False, default="manual")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

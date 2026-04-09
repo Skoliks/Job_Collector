@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
 
@@ -10,9 +10,12 @@ class CreateVacancy(BaseModel):
     published_date: str | None = None
     description: str | None = None
     url: str | None = None
+    source: str = "manual"
     
     
 class Vacancy(CreateVacancy):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     created_at: datetime
     
@@ -36,6 +39,19 @@ class UpdateVacancy(BaseModel):
     url: str | None = None
     
 class ParsedVacancies(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     saved: list[Vacancy]
     created_count: int
     skipped_count: int
+
+
+class ParsedHhVacancies(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    saved: list[Vacancy]
+    received_count: int
+    created_count: int
+    updated_count: int
+    skipped_count: int
+    deleted_count: int

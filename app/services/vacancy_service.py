@@ -1,8 +1,16 @@
-﻿from app.models.vacancy import Vacancy as VacancyModel
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
-from app.schemas import CreateVacancy, UpdateCompletelyVacancy, UpdateVacancy
+
+from app.models.vacancy import Vacancy as VacancyModel
 from app.parsers.asynco_parser import parse_fake_jobs
+from app.parsers.hh_parser import parse_hh_vacancies
+from app.schemas import CreateVacancy, UpdateCompletelyVacancy, UpdateVacancy
+
+HH_DEFAULT_TEXT = ""
+HH_DEFAULT_PERIOD = 7
+HH_DEFAULT_PER_PAGE = 20
 
 
 def get_all_vacancies(
@@ -30,6 +38,7 @@ def get_all_vacancies(
                 VacancyModel.location.ilike(f"%{token}%"),
                 VacancyModel.description.ilike(f"%{token}%"),
                 VacancyModel.url.ilike(f"%{token}%"),
+                VacancyModel.source.ilike(f"%{token}%"),
             ]
 
             if token.isdigit():
@@ -56,6 +65,8 @@ def get_all_vacancies(
         query = query.order_by(VacancyModel.salary)
     elif sort_by == "created_at":
         query = query.order_by(VacancyModel.created_at)
+    else:
+        query = query.order_by(VacancyModel.id.desc())
 
     query = query.offset(offset)
     query = query.limit(limit)
@@ -145,35 +156,137 @@ def if_vacancy_is_not_exist(vacancy_schema: CreateVacancy, db: Session):
     return new_vacancy, True
 
 
+def update_vacancy_from_schema(vacancy: VacancyModel, vacancy_schema: CreateVacancy, db: Session):
+    vacancy_data = vacancy_schema.model_dump()
 
-def save_parsed_vacancies(db: Session):
+    for field, value in vacancy_data.items():
+        setattr(vacancy, field, value)
 
-    parsed_data = parse_fake_jobs()
+    db.commit()
+    db.refresh(vacancy)
 
+    return vacancy
+
+
+def save_vacancies_from_parser(
+    parsed_data: list[dict],
+    db: Session,
+    source: str,
+    update_existing: bool = False
+):
     if not parsed_data:
         return {
             "saved": [],
+            "received_count": 0,
             "created_count": 0,
+            "updated_count": 0,
             "skipped_count": 0
         }
 
     saved_vacancies = []
     created_count = 0
+    updated_count = 0
     skipped_count = 0
 
     for vacancy in parsed_data:
-        vacancy_schema = CreateVacancy(**vacancy)
-        create_new_vacancy, created = if_vacancy_is_not_exist(vacancy_schema, db)
-        saved_vacancies.append(create_new_vacancy)
+        vacancy_schema = CreateVacancy(**vacancy, source=source)
+        existing_vacancy = None
 
-        if created:
+        if vacancy_schema.url is not None:
+            existing_vacancy = find_vacancy_by_url(vacancy_schema.url, db)
+
+        if existing_vacancy is None:
+            created_vacancy, _ = if_vacancy_is_not_exist(vacancy_schema, db)
+            saved_vacancies.append(created_vacancy)
             created_count += 1
+            continue
+
+        if update_existing:
+            updated_vacancy = update_vacancy_from_schema(existing_vacancy, vacancy_schema, db)
+            saved_vacancies.append(updated_vacancy)
+            updated_count += 1
         else:
+            saved_vacancies.append(existing_vacancy)
             skipped_count += 1
 
+    return {
+        "saved": saved_vacancies,
+        "received_count": len(parsed_data),
+        "created_count": created_count,
+        "updated_count": updated_count,
+        "skipped_count": skipped_count
+    }
+
+
+def parse_hh_published_date(published_date: str | None) -> datetime | None:
+    if not published_date:
+        return None
+
+    try:
+        return datetime.strptime(published_date, "%Y-%m-%dT%H:%M:%S%z")
+    except ValueError:
+        return None
+
+
+def delete_outdated_hh_vacancies(db: Session, period: int):
+    threshold = datetime.now(timezone.utc) - timedelta(days=period)
+    deleted_count = 0
+
+    hh_vacancies = db.query(VacancyModel).filter(VacancyModel.source == "hh").all()
+
+    for vacancy in hh_vacancies:
+        published_at = parse_hh_published_date(vacancy.published_date)
+
+        if published_at is None:
+            continue
+
+        if published_at.astimezone(timezone.utc) < threshold:
+            db.delete(vacancy)
+            deleted_count += 1
+
+    if deleted_count > 0:
+        db.commit()
+
+    return deleted_count
+
+
+def save_parsed_vacancies(db: Session):
+    parsed_data = parse_fake_jobs()
+    result = save_vacancies_from_parser(
+        parsed_data=parsed_data,
+        db=db,
+        source="fake_jobs"
+    )
 
     return {
-            "saved": saved_vacancies,
-            "created_count": created_count,
-            "skipped_count": skipped_count
-        }
+        "saved": result["saved"],
+        "created_count": result["created_count"],
+        "skipped_count": result["skipped_count"]
+    }
+
+
+def save_hh_parsed_vacancies(
+    db: Session
+):
+    parsed_data = parse_hh_vacancies(
+        text=HH_DEFAULT_TEXT,
+        period=HH_DEFAULT_PERIOD,
+        per_page=HH_DEFAULT_PER_PAGE
+    )
+
+    result = save_vacancies_from_parser(
+        parsed_data=parsed_data,
+        db=db,
+        source="hh",
+        update_existing=True
+    )
+    deleted_count = delete_outdated_hh_vacancies(db, HH_DEFAULT_PERIOD)
+
+    return {
+        "saved": result["saved"],
+        "received_count": result["received_count"],
+        "created_count": result["created_count"],
+        "updated_count": result["updated_count"],
+        "skipped_count": result["skipped_count"],
+        "deleted_count": deleted_count
+    }

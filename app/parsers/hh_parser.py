@@ -82,7 +82,7 @@ def parse_vacancy(vacancy: dict) -> dict:
     }
     
 
-async def collect_vacancies(url: str, headers: dict, text: str, period: int, max_pages: int, per_page: int) -> list[dict]:
+async def collect_vacancies(url: str, headers: dict, text: str, period: int, per_page: int) -> list[dict]:
     vacancies = []
     semaphore = asyncio.Semaphore(5)
     
@@ -101,11 +101,11 @@ async def collect_vacancies(url: str, headers: dict, text: str, period: int, max
             logger.error("Request completed with errror. Count of max page not found!")
             return []
         
-        total_pages = json_data_for_pages.get('pages',0)
-        pages_for_parse = min(max_pages, total_pages)
+        pages_for_parse = json_data_for_pages.get('pages', 0)
+        results = [json_data_for_pages]
         tasks = []
         
-        for page in range(pages_for_parse):
+        for page in range(1, pages_for_parse):
             params = {
                 'text': text,
                 'period': period,
@@ -115,10 +115,11 @@ async def collect_vacancies(url: str, headers: dict, text: str, period: int, max
             
             logger.info(f"Request on {page}")
             task = get_vacancies_page(url=url, params=params, headers=headers, semaphore=semaphore, session=session)
-        
+            
             tasks.append(task)
             
-        results = await asyncio.gather(*tasks)
+        if tasks:
+            results.extend(await asyncio.gather(*tasks))
             
         for page, json_data in enumerate(results):   
             if json_data is None:
@@ -140,16 +141,15 @@ async def collect_vacancies(url: str, headers: dict, text: str, period: int, max
     return vacancies
      
     
-def parse_hh_vacancies(text: str, period: int, max_pages: int, per_page: int) -> list[dict]:
+def parse_hh_vacancies(text: str, period: int, per_page: int) -> list[dict]:
     return asyncio.run(
         collect_vacancies(
             url=settings.hh_api_url,
             headers=headers,
             text=text,
             period=period,
-            max_pages=max_pages,
             per_page=per_page
         )
     )
+ 
 
-print(parse_hh_vacancies(text="Аналитик", period=7, max_pages=10, per_page=20))

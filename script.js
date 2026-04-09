@@ -16,6 +16,7 @@ const state = {
 
 const elements = {
   parseBtn: document.getElementById("parseBtn"),
+  parseHhBtn: document.getElementById("parseHhBtn"),
   notification: document.getElementById("notification"),
   searchForm: document.getElementById("searchForm"),
   searchInput: document.getElementById("searchInput"),
@@ -34,6 +35,8 @@ function isListPage() {
 function isAddPage() {
   return Boolean(elements.createForm) && !elements.vacanciesList;
 }
+
+let notificationTimerId = null;
 
 // Универсальный helper для fetch с обработкой ошибок.
 async function request(url, options = {}) {
@@ -77,6 +80,12 @@ async function parseFakeVacancies() {
   });
 }
 
+async function parseHhVacancies() {
+  return request(`${BASE_URL}/vacancies/parse-hh`, {
+    method: "POST"
+  });
+}
+
 async function createVacancy(payload) {
   return request(`${BASE_URL}/vacancies/`, {
     method: "POST",
@@ -101,17 +110,37 @@ async function removeVacancy(id) {
 
 // ----- UI helper-функции -----
 
-function showNotification(message, type = "success") {
+function showNotification(message, type = "success", autoHide = true) {
   if (!elements.notification) return;
+
+  if (notificationTimerId) {
+    clearTimeout(notificationTimerId);
+    notificationTimerId = null;
+  }
 
   elements.notification.textContent = message;
   elements.notification.className = `notification ${type}`;
 
-  setTimeout(() => {
+  if (!autoHide) return;
+
+  notificationTimerId = setTimeout(() => {
     if (!elements.notification) return;
     elements.notification.className = "notification hidden";
     elements.notification.textContent = "";
+    notificationTimerId = null;
   }, 3000);
+}
+
+function hideNotification() {
+  if (!elements.notification) return;
+
+  if (notificationTimerId) {
+    clearTimeout(notificationTimerId);
+    notificationTimerId = null;
+  }
+
+  elements.notification.className = "notification hidden";
+  elements.notification.textContent = "";
 }
 
 function escapeHtml(text = "") {
@@ -157,6 +186,7 @@ function renderVacancies(vacancies) {
       <h3>${titleHtml}</h3>
       <div class="meta">
         ${formatMeta("Компания", vacancy.company)}
+        ${formatMeta("Источник", vacancy.source)}
         ${formatMeta("Локация", vacancy.location)}
         ${formatMeta("Зарплата", vacancy.salary)}
         ${formatMeta("Дата публикации", vacancy.published_date)}
@@ -285,6 +315,7 @@ if (elements.parseBtn) {
   elements.parseBtn.addEventListener("click", async () => {
     try {
       elements.parseBtn.disabled = true;
+      showNotification("Загрузка данных...", "info", false);
       const result = await parseFakeVacancies();
 
       const created = result.created_count ?? 0;
@@ -297,6 +328,32 @@ if (elements.parseBtn) {
       showNotification(`Ошибка парсинга: ${error.message}`, "error");
     } finally {
       elements.parseBtn.disabled = false;
+    }
+  });
+}
+
+if (elements.parseHhBtn) {
+  elements.parseHhBtn.addEventListener("click", async () => {
+    try {
+      elements.parseHhBtn.disabled = true;
+      showNotification("Загрузка данных...", "info", false);
+      const result = await parseHhVacancies();
+
+      const received = result.received_count ?? 0;
+      const created = result.created_count ?? 0;
+      const updated = result.updated_count ?? 0;
+      const skipped = result.skipped_count ?? 0;
+      const deleted = result.deleted_count ?? 0;
+
+      showNotification(
+        `HH парсинг завершен: получено ${received}, добавлено ${created}, обновлено ${updated}, пропущено ${skipped}, удалено ${deleted}`
+      );
+      state.currentPage = 1;
+      await loadVacancies();
+    } catch (error) {
+      showNotification(`Ошибка HH парсинга: ${error.message}`, "error");
+    } finally {
+      elements.parseHhBtn.disabled = false;
     }
   });
 }
